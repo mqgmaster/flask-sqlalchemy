@@ -27,6 +27,7 @@ from sqlalchemy import event, inspect, orm
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.ext.declarative import DeclarativeMeta, declarative_base, \
     declared_attr
+from sqlalchemy.schema import MetaData
 from sqlalchemy.orm.exc import UnmappedClassError
 from sqlalchemy.orm.session import Session as SessionBase
 
@@ -49,10 +50,10 @@ before_models_committed = _signals.signal('before-models-committed')
 
 def _make_table(db):
     def _make_table(*args, **kwargs):
-        if len(args) > 1 and isinstance(args[1], db.Column):
-            args = (args[0], db.metadata) + args[1:]
         info = kwargs.pop('info', None) or {}
         info.setdefault('bind_key', None)
+        if len(args) > 1 and isinstance(args[1], db.Column):
+            args = (args[0], db.get_metadata(bind=info['bind_key'])) + args[1:]
         kwargs['info'] = info
         return sqlalchemy.Table(*args, **kwargs)
     return _make_table
@@ -599,6 +600,10 @@ class _BoundDeclarativeMeta(DeclarativeMeta):
 
     def __init__(self, name, bases, d):
         bind_key = d.pop('__bind_key__', None) or getattr(self, '__bind_key__', None)
+        if bind_key:
+            if bind_key not in self._metadata:
+                self._metadata[bind_key] = MetaData()
+            self.metadata = self._metadata[bind_key]
         DeclarativeMeta.__init__(self, name, bases, d)
 
         if bind_key is not None and hasattr(self, '__table__'):
@@ -743,6 +748,7 @@ class SQLAlchemy(object):
         self.use_native_unicode = use_native_unicode
         self.Query = query_class
         self.session = self.create_scoped_session(session_options)
+        model_class._metadata = {}
         self.Model = self.make_declarative_base(model_class, metadata)
         self._engine_lock = Lock()
         self.app = app
@@ -756,6 +762,14 @@ class SQLAlchemy(object):
         """The metadata associated with ``db.Model``."""
 
         return self.Model.metadata
+
+    def get_metadata(self, bind=None):
+        if not bind:
+            return self.metadata
+        if bind not in self.Model._metadata:
+            self.Model._metadata[bind] = MetaData()
+        return self.Model._metadata.get(bind)
+
 
     def create_scoped_session(self, options=None):
         """Create a :class:`~sqlalchemy.orm.scoping.scoped_session`
@@ -961,7 +975,7 @@ class SQLAlchemy(object):
     def get_tables_for_bind(self, bind=None):
         """Returns a list of all tables relevant for a bind."""
         result = []
-        for table in itervalues(self.Model.metadata.tables):
+        for table in itervalues(self.get_metadata(bind=bind).tables):
             if table.info.get('bind_key') == bind:
                 result.append(table)
         return result
@@ -995,7 +1009,7 @@ class SQLAlchemy(object):
             if not skip_tables:
                 tables = self.get_tables_for_bind(bind)
                 extra['tables'] = tables
-            op = getattr(self.Model.metadata, operation)
+            op = getattr(self.get_metadata(bind=bind), operation)
             op(bind=self.get_engine(app, bind), **extra)
 
     def create_all(self, bind='__all__', app=None):
