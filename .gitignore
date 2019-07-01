@@ -8,3 +8,8 @@ docs/_build
 *.egg
 .idea/
 .cache/
+/lib/
+/share/
+/include/
+/bin/
+/lib64
