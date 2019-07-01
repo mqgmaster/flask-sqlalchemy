@@ -13,3 +13,5 @@ docs/_build
 /include/
 /bin/
 /lib64
+/pyvenv.cfg
+/tpkg.py
