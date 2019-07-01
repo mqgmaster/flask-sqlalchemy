@@ -1,0 +1,17 @@
+{
+    "name": "project",
+    "version": "1.0.0",
+    "type": "python",
+    "arch": "amd64",
+    "desc": "New project",
+    "author": "TechnoBox Tecnologia",
+    "email": "suporte@technobox.com.br",
+    "site": "technobox.com.br",
+    "src": "tbox",
+    "require": [],
+    "require-dev": [
+        "setuptools==40.5.0",
+        "pip==18.1",
+        "nuitka==0.5.29.5"
+    ]
+}
